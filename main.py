@@ -84,7 +84,15 @@ def to_mins(hhmm):
 
 def from_mins(mins):
     mins = int(mins) % 1440
-    return f"{mins // 60:02d}:{mins % 60:02d}"
+    hours = mins // 60
+    minutes = mins % 60
+    period = "AM" if hours < 12 else "PM"
+    
+    display_hours = hours % 12
+    if display_hours == 0:
+        display_hours = 12
+        
+    return f"{display_hours:02d}:{minutes:02d} {period}"
 
 def is_ramadan(y, m, d):
     return convert.Gregorian(y, m, d).to_hijri().month == 9
