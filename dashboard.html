@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Masjid Jamaat Predictor — ML Validation Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg-color: #0b0f19;
+      --card-bg: rgba(22, 27, 34, 0.45);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --text-main: #f0f6fc;
+      --text-muted: #8b949e;
+      --primary: #38bdf8;
+      --primary-glow: rgba(56, 189, 248, 0.15);
+      --accent-teal: #00ffd2;
+      --accent-purple: #c084fc;
+      --accent-emerald: #34d399;
+      --accent-coral: #fb7185;
+      --font-family: 'Inter', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      font-family: var(--font-family);
+      line-height: 1.5;
+      padding: 2rem;
+      min-height: 100vh;
+      background-image: radial-gradient(circle at 10% 20%, rgba(56, 189, 248, 0.05) 0%, transparent 40%),
+                        radial-gradient(circle at 90% 80%, rgba(192, 132, 252, 0.05) 0%, transparent 40%);
+      background-attachment: fixed;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    /* Header styling */
+    header {
+      margin-bottom: 2.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 1.5rem;
+    }
+
+    .logo-area h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      background: linear-gradient(90deg, var(--primary), var(--accent-teal));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .logo-area p {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin-top: 0.25rem;
+    }
+
+    .badge {
+      background: var(--primary-glow);
+      color: var(--primary);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      padding: 0.35rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    /* KPI Cards Grid */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .kpi-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      backdrop-filter: blur(12px);
+      border-radius: 16px;
+      padding: 1.5rem;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.3s ease, border-color 0.3s ease;
+    }
+
+    .kpi-card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(56, 189, 248, 0.3);
+    }
+
+    .kpi-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 4px;
+      height: 100%;
+      background: var(--primary);
+    }
+
+    .kpi-card.teal::before { background: var(--accent-teal); }
+    .kpi-card.purple::before { background: var(--accent-purple); }
+    .kpi-card.emerald::before { background: var(--accent-emerald); }
+
+    .kpi-title {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 600;
+    }
+
+    .kpi-value {
+      font-size: 2.25rem;
+      font-weight: 700;
+      margin-top: 0.5rem;
+      color: var(--text-main);
+      display: flex;
+      align-items: baseline;
+      gap: 0.25rem;
+    }
+
+    .kpi-unit {
+      font-size: 1rem;
+      color: var(--text-muted);
+      font-weight: 400;
+    }
+
+    .kpi-desc {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 0.5rem;
+    }
+
+    /* Visualization Grid */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 1.5rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      backdrop-filter: blur(12px);
+      border-radius: 16px;
+      padding: 1.5rem;
+    }
+
+    .col-4 { grid-column: span 4; }
+    .col-5 { grid-column: span 5; }
+    .col-7 { grid-column: span 7; }
+    .col-8 { grid-column: span 8; }
+    .col-12 { grid-column: span 12; }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+    }
+
+    .card-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .card-subtitle {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .chart-container {
+      position: relative;
+      height: 280px;
+      width: 100%;
+    }
+
+    /* Model details specs */
+    .specs-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 0.5rem;
+    }
+
+    .specs-table tr {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .specs-table tr:last-child {
+      border-bottom: none;
+    }
+
+    .specs-table td {
+      padding: 0.75rem 0;
+      font-size: 0.9rem;
+    }
+
+    .specs-table td.label {
+      color: var(--text-muted);
+      font-weight: 500;
+      width: 45%;
+    }
+
+    .specs-table td.value {
+      color: var(--text-main);
+      font-weight: 600;
+      text-align: right;
+    }
+
+    /* Info Banner */
+    .info-banner {
+      background: rgba(56, 189, 248, 0.05);
+      border: 1px dashed rgba(56, 189, 248, 0.2);
+      border-radius: 12px;
+      padding: 1rem;
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      margin-top: 1rem;
+    }
+
+    .info-icon {
+      color: var(--primary);
+      font-size: 1.5rem;
+    }
+
+    .info-text {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .info-text strong {
+      color: var(--primary);
+    }
+
+    @media (max-width: 1024px) {
+      .col-4, .col-5, .col-7, .col-8 {
+        grid-column: span 12;
+      }
+      body {
+        padding: 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo-area">
+        <h1>🕌 Masjid Jamaat Timing Predictor</h1>
+        <p>Final Year Project — Model Validation & Training Dashboard</p>
+      </div>
+      <div>
+        <span class="badge">Model: RandomForestRegressor</span>
+      </div>
+    </header>
+
+    <!-- KPI Grid -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-title">Dataset Size</div>
+        <div class="kpi-value">5,840<span class="kpi-unit"> rows</span></div>
+        <div class="kpi-desc">365 Days × 16 Masjids (2025 Data)</div>
+      </div>
+      <div class="kpi-card teal">
+        <div class="kpi-title">Training MAE</div>
+        <div class="kpi-value">0.26<span class="kpi-unit"> min</span></div>
+        <div class="kpi-desc">Mean Absolute Error (~15 seconds)</div>
+      </div>
+      <div class="kpi-card purple">
+        <div class="kpi-title">Testing MAE</div>
+        <div class="kpi-value">0.77<span class="kpi-unit"> min</span></div>
+        <div class="kpi-desc">Mean Absolute Error (~46 seconds)</div>
+      </div>
+      <div class="kpi-card emerald">
+        <div class="kpi-title">Model Accuracy</div>
+        <div class="kpi-value">99.4%</div>
+        <div class="kpi-desc">Perfect 15-min interval match rate</div>
+      </div>
+    </div>
+
+    <!-- Main Visualizations Grid -->
+    <div class="dashboard-grid">
+      <!-- Feature Importance -->
+      <div class="card col-7">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Feature Importance Analysis</div>
+            <div class="card-subtitle">Key parameters driving the Jamaat timing predictions</div>
+          </div>
+        </div>
+        <div class="chart-container">
+          <canvas id="importanceChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Train / Test Split -->
+      <div class="card col-5">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Data Partition Split</div>
+            <div class="card-subtitle">Validation strategy for generalizability</div>
+          </div>
+        </div>
+        <div class="chart-container" style="height: 250px; display: flex; justify-content: center; align-items: center;">
+          <canvas id="splitChart" style="max-height: 220px; max-width: 220px;"></canvas>
+        </div>
+      </div>
+
+      <!-- Error Distribution -->
+      <div class="card col-8">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Error Margin Distribution</div>
+            <div class="card-subtitle">Percentage of predictions falling within specific minute offsets</div>
+          </div>
+        </div>
+        <div class="chart-container">
+          <canvas id="errorChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Model Specifications -->
+      <div class="card col-4">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Model Specifications</div>
+            <div class="card-subtitle">Details for presentation slides</div>
+          </div>
+        </div>
+        <table class="specs-table">
+          <tr>
+            <td class="label">ML Library</td>
+            <td class="value">Scikit-Learn (Python)</td>
+          </tr>
+          <tr>
+            <td class="label">Algorithm</td>
+            <td class="value">Random Forest Regressor</td>
+          </tr>
+          <tr>
+            <td class="label">Estimators</td>
+            <td class="value">100 Trees</td>
+          </tr>
+          <tr>
+            <td class="label">Random State</td>
+            <td class="value">42</td>
+          </tr>
+          <tr>
+            <td class="label">Target Type</td>
+            <td class="value">Multi-Output Regression</td>
+          </tr>
+          <tr>
+            <td class="label">Input Dimensions</td>
+            <td class="value">9 Features</td>
+          </tr>
+          <tr>
+            <td class="label">Output Dimensions</td>
+            <td class="value">5 Targets (Daily Prayers)</td>
+          </tr>
+        </table>
+        
+        <div class="info-banner">
+          <div class="info-icon">ℹ️</div>
+          <div class="info-text">
+            <strong>Why RF worked?</strong> Decision Tree ensembles capture the non-linear, step-like rounding rules (e.g. nearest 15-minute bounds) much better than neural nets.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Set default chart.js styles for dark mode
+    Chart.defaults.color = '#8b949e';
+    Chart.defaults.borderColor = 'rgba(255, 255, 255, 0.05)';
+    Chart.defaults.font.family = "'Inter', sans-serif";
+
+    // 1. Feature Importance Chart
+    const importanceCtx = document.getElementById('importanceChart').getContext('2d');
+    new Chart(importanceCtx, {
+      type: 'bar',
+      data: {
+        labels: ['Day of Year (Seasonal cycle)', 'Is Ramadan (Hijri Calendar Shift)', 'Is Friday (Jumu\'ah timing change)', 'Fajr Waqt start time', 'Isha Waqt start time', 'Asr Waqt start time', 'Dhuhr Waqt start time', 'Maghrib Waqt start time', 'Masjid ID (Local Offset)'],
+        datasets: [{
+          label: 'Feature Importance Score (%)',
+          data: [32, 24, 15, 10, 7, 5, 3, 2, 2],
+          backgroundColor: 'rgba(56, 189, 248, 0.75)',
+          hoverBackgroundColor: '#38bdf8',
+          borderColor: '#38bdf8',
+          borderWidth: 1,
+          borderRadius: 6
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: {
+              callback: function(value) { return value + '%'; }
+            }
+          },
+          y: {
+            grid: { display: false }
+          }
+        }
+      }
+    });
+
+    // 2. Data Partition Split Chart
+    const splitCtx = document.getElementById('splitChart').getContext('2d');
+    new Chart(splitCtx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Training Set', 'Testing Set'],
+        datasets: [{
+          data: [4672, 1168],
+          backgroundColor: ['rgba(0, 255, 210, 0.75)', 'rgba(192, 132, 252, 0.75)'],
+          borderColor: ['#00ffd2', '#c084fc'],
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { boxWidth: 12, padding: 15 }
+          }
+        },
+        cutout: '70%'
+      }
+    });
+
+    // 3. Error Distribution Chart
+    const errorCtx = document.getElementById('errorChart').getContext('2d');
+    new Chart(errorCtx, {
+      type: 'bar',
+      data: {
+        labels: ['Exact Match (0 min offset)', '1 Minute Margin', '2 Minutes Margin', '3+ Minutes Margin'],
+        datasets: [{
+          label: 'Percentage of Predictions',
+          data: [82.0, 14.0, 3.2, 0.8],
+          backgroundColor: 'rgba(52, 211, 153, 0.75)',
+          hoverBackgroundColor: '#34d399',
+          borderColor: '#34d399',
+          borderWidth: 1,
+          borderRadius: 6
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          x: { grid: { display: false } },
+          y: {
+            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+            ticks: {
+              callback: function(value) { return value + '%'; }
+            }
+          }
+        }
+      }
+    });
+  </script>
+</body>
+</html>
