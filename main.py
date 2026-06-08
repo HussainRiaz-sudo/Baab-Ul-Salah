@@ -433,10 +433,11 @@ def _get_masjid_timings_context_for_today(query_text: str) -> str:
     return "\n".join(context_lines)
 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+XAI_API_KEY = os.environ.get("XAI_API_KEY")
 
 @app.post("/chat/gemini")
 def chat_gemini(req: GeminiChatRequest):
-    """Answers user query using Groq (Llama 3) or Gemini Pro, enriched with model predicted timings (RAG)"""
+    """Answers user query using xAI (Grok), Groq (Llama 3), or Gemini Pro, enriched with model predicted timings (RAG)"""
     # 1. Fetch predicted timing context if needed
     timing_context = _get_masjid_timings_context_for_today(req.message)
     
@@ -453,6 +454,46 @@ def chat_gemini(req: GeminiChatRequest):
     )
     if timing_context:
         system_prompt += f"Active Database Context:\n{timing_context}\n\n"
+
+    # --- PROVIDER 0: xAI GROK API ---
+    if XAI_API_KEY:
+        try:
+            import httpx
+            # Format history for OpenAI chat format
+            messages = [{"role": "system", "content": system_prompt}]
+            if req.history:
+                for turn in req.history:
+                    role = "user" if turn.role == "user" else "assistant"
+                    messages.append({"role": role, "content": turn.text})
+            messages.append({"role": "user", "content": req.message})
+            
+            headers = {
+                "Authorization": f"Bearer {XAI_API_KEY}",
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "model": "grok-beta",  # Grok-2 Developer Beta Model
+                "messages": messages,
+                "temperature": 0.7,
+                "max_tokens": 1024
+            }
+            
+            with httpx.Client() as client:
+                response = client.post(
+                    "https://api.x.ai/v1/chat/completions",
+                    headers=headers,
+                    json=payload,
+                    timeout=20.0
+                )
+                
+            if response.status_code == 200:
+                res_data = response.json()
+                reply = res_data["choices"][0]["message"]["content"]
+                return {"response": reply}
+            else:
+                print(f"xAI API returned error status: {response.status_code}, detail: {response.text}")
+        except Exception as e:
+            print(f"Failed to communicate with xAI: {str(e)}")
 
     # --- PROVIDER 1: GROQ CLOUD API (100% Free, Blazing Fast, No Billing Needed) ---
     if GROQ_API_KEY:
@@ -471,7 +512,7 @@ def chat_gemini(req: GeminiChatRequest):
                 "Content-Type": "application/json"
             }
             payload = {
-                "model": "llama3-8b-8192",  # Free tier default high-performance model
+                "model": "llama-3.1-8b-instant",  # Free tier default high-performance model
                 "messages": messages,
                 "temperature": 0.7,
                 "max_tokens": 1024
@@ -523,5 +564,5 @@ def chat_gemini(req: GeminiChatRequest):
     # If neither key is configured
     raise HTTPException(
         status_code=500, 
-        detail="No active AI API keys (GROQ_API_KEY or GEMINI_API_KEY) found in the environment configurations. Please configure a free Groq key or Gemini key."
+        detail="No active AI API keys (XAI_API_KEY, GROQ_API_KEY, or GEMINI_API_KEY) found in the environment configurations."
     )
