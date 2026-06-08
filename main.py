@@ -176,19 +176,6 @@ def _generate_features_for_day(dt, masjid_id, lat, lon):
 def read_root():
     return {"message": "Masjid Jamaat API. See /docs for endpoints."}
 
-@app.get("/debug/keys")
-def debug_keys():
-    import os
-    groq = os.environ.get("GROQ_API_KEY")
-    gemini = os.environ.get("GEMINI_API_KEY")
-    xai = os.environ.get("XAI_API_KEY")
-    return {
-        "has_groq": groq is not None,
-        "has_gemini": gemini is not None,
-        "has_xai": xai is not None,
-        "groq_key_len": len(groq) if groq else 0
-    }
-
 @app.get("/masjids")
 def get_all_masjids():
     """Returns all available masjids"""
