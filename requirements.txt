@@ -6,3 +6,4 @@ pandas
 numpy
 praytimes
 hijridate
+google-generativeai

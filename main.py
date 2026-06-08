@@ -362,3 +362,115 @@ def chat_bot(req: ChatRequest):
                     "* **API Endpoints**: Details on endpoints like `/predict` and `/masjids/nearby`.\n\n"
                     "Try asking: *'What algorithm is used?'* or *'What is the model accuracy?'*"
     }
+
+# --- ADVANCED GEMINI PRO CHATBOT INTEGRATION ---
+import google.generativeai as genai
+
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+
+class ConversationTurn(BaseModel):
+    role: str  # "user" or "model"
+    text: str
+
+class GeminiChatRequest(BaseModel):
+    message: str
+    history: Optional[list[ConversationTurn]] = None
+
+def _get_masjid_timings_context_for_today(query_text: str) -> str:
+    """Uses the loaded Random Forest model to predict today's timings for context injection"""
+    query_lower = query_text.lower()
+    timing_words = ["time", "timing", "namaz", "prayer", "jamaat", "when", "fajr", "zuhr", "dhuhr", "asr", "maghrib", "isha", "jumuah"]
+    mentions_timing = any(w in query_lower for w in timing_words)
+    
+    # Check if a specific masjid is mentioned
+    mentioned_masjid = None
+    for m in MASJIDS:
+        if m['masjid_name'].lower() in query_lower:
+            mentioned_masjid = m
+            break
+            
+    if not mentions_timing and not mentioned_masjid:
+        return ""
+        
+    if model is None:
+        return "Note: The machine learning model is currently not loaded on the backend."
+        
+    dt = datetime.now()
+    context_lines = [
+        f"Today's Date: {dt.strftime('%Y-%m-%d')} ({dt.strftime('%A')})",
+        "Islamic Month Context: Ramadan is active if is_ramadan is 1."
+    ]
+    
+    # Predict for the mentioned masjid, or default to first 5
+    target_masjids = [mentioned_masjid] if mentioned_masjid else MASJIDS[:5]
+    
+    context_lines.append("\nCurrent predicted congregation (Jamaat) timings for relevant Lahore masjids:")
+    for m in target_masjids:
+        features = _generate_features_for_day(dt, m['masjid_id'], m['latitude'], m['longitude'])
+        preds = model.predict([features])[0]
+        preds = np.round(preds).astype(int)
+        
+        context_lines.append(
+            f"- **{m['masjid_name']}** (ID: {m['masjid_id']}): "
+            f"Fajr: {from_mins(preds[0])}, "
+            f"Zuhr: {from_mins(preds[1])}, "
+            f"Asr: {from_mins(preds[2])}, "
+            f"Maghrib: {from_mins(preds[3])}, "
+            f"Isha: {from_mins(preds[4])}"
+        )
+        
+    return "\n".join(context_lines)
+
+@app.post("/chat/gemini")
+def chat_gemini(req: GeminiChatRequest):
+    """Answers user query using Gemini Pro, enriched with current model predicted timings (RAG)"""
+    if not GEMINI_API_KEY:
+        raise HTTPException(
+            status_code=500, 
+            detail="GEMINI_API_KEY environment variable is not configured. Please set it in your hosting settings."
+        )
+        
+    # 1. Fetch predicted timing context if needed
+    timing_context = _get_masjid_timings_context_for_today(req.message)
+    
+    # 2. Build Islamic and app-aware System Prompt
+    system_prompt = (
+        "You are e.Baab-ul-Salah Bot, a helpful and polite Islamic assistant for the e.Baab-ul-Salah application.\n"
+        "Your task is to answer user questions about Islamic practices, prayers, fiqh, sunnah, "
+        "and masjid congregation (Jamaat) timings in Lahore.\n\n"
+        "Guidelines:\n"
+        "- Give clear, concise, and respectful responses.\n"
+        "- Utilize the context below for any timings or masjid location queries. Do not hallucinate different times.\n"
+        "- If a user asks for timings of a masjid not in the context, guide them to use our search or nearby features.\n"
+        "- If unsure of an Islamic practice question, say so respectfully.\n\n"
+    )
+    if timing_context:
+        system_prompt += f"Active Database Context:\n{timing_context}\n\n"
+        
+    try:
+        # 3. Load Gemini Model (using gemini-1.5-flash for speed and low latency)
+        gemini_model = genai.GenerativeModel(
+            model_name="gemini-1.5-flash",
+            system_instruction=system_prompt
+        )
+        
+        # 4. Initialize chat history
+        history = []
+        if req.history:
+            for turn in req.history:
+                role = "user" if turn.role == "user" else "model"
+                history.append({
+                    "role": role,
+                    "parts": [turn.text]
+                })
+                
+        chat = gemini_model.start_chat(history=history)
+        
+        # 5. Generate response
+        response = chat.send_message(req.message)
+        return {"response": response.text}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gemini API Exception: {str(e)}")
