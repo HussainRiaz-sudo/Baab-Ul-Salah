@@ -432,15 +432,11 @@ def _get_masjid_timings_context_for_today(query_text: str) -> str:
         
     return "\n".join(context_lines)
 
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+
 @app.post("/chat/gemini")
 def chat_gemini(req: GeminiChatRequest):
-    """Answers user query using Gemini Pro, enriched with current model predicted timings (RAG)"""
-    if not GEMINI_API_KEY:
-        raise HTTPException(
-            status_code=500, 
-            detail="GEMINI_API_KEY environment variable is not configured. Please set it in your hosting settings."
-        )
-        
+    """Answers user query using Groq (Llama 3) or Gemini Pro, enriched with model predicted timings (RAG)"""
     # 1. Fetch predicted timing context if needed
     timing_context = _get_masjid_timings_context_for_today(req.message)
     
@@ -457,27 +453,75 @@ def chat_gemini(req: GeminiChatRequest):
     )
     if timing_context:
         system_prompt += f"Active Database Context:\n{timing_context}\n\n"
-        
-    try:
-        # 3. Load Gemini Model (using gemini-2.0-flash for high free quota limits)
-        gemini_model = genai.GenerativeModel(model_name="gemini-2.0-flash")
-        
-        # 4. Initialize chat history
-        history = []
-        if req.history:
-            for turn in req.history:
-                role = "user" if turn.role == "user" else "model"
-                history.append({
-                    "role": role,
-                    "parts": [turn.text]
-                })
+
+    # --- PROVIDER 1: GROQ CLOUD API (100% Free, Blazing Fast, No Billing Needed) ---
+    if GROQ_API_KEY:
+        try:
+            import httpx
+            # Format history for OpenAI chat format
+            messages = [{"role": "system", "content": system_prompt}]
+            if req.history:
+                for turn in req.history:
+                    role = "user" if turn.role == "user" else "assistant"
+                    messages.append({"role": role, "content": turn.text})
+            messages.append({"role": "user", "content": req.message})
+            
+            headers = {
+                "Authorization": f"Bearer {GROQ_API_KEY}",
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "model": "llama3-8b-8192",  # Free tier default high-performance model
+                "messages": messages,
+                "temperature": 0.7,
+                "max_tokens": 1024
+            }
+            
+            with httpx.Client() as client:
+                response = client.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    headers=headers,
+                    json=payload,
+                    timeout=15.0
+                )
                 
-        chat = gemini_model.start_chat(history=history)
-        
-        # 5. Generate response by combining system prompt and message to avoid unsupported system_instruction parameter in gemini-pro
-        combined_prompt = f"{system_prompt}\n\nUser Question: {req.message}"
-        response = chat.send_message(combined_prompt)
-        return {"response": response.text}
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Gemini API Exception: {str(e)}")
+            if response.status_code == 200:
+                res_data = response.json()
+                reply = res_data["choices"][0]["message"]["content"]
+                return {"response": reply}
+            else:
+                print(f"Groq API returned error status: {response.status_code}, detail: {response.text}")
+        except Exception as e:
+            print(f"Failed to communicate with Groq: {str(e)}")
+
+    # --- PROVIDER 2: GEMINI PRO API ---
+    if GEMINI_API_KEY:
+        try:
+            # Load Gemini Model (using gemini-2.0-flash for high free quota limits)
+            gemini_model = genai.GenerativeModel(model_name="gemini-2.0-flash")
+            
+            # Initialize chat history
+            history = []
+            if req.history:
+                for turn in req.history:
+                    role = "user" if turn.role == "user" else "model"
+                    history.append({
+                        "role": role,
+                        "parts": [turn.text]
+                    })
+                    
+            chat = gemini_model.start_chat(history=history)
+            
+            # Generate response
+            combined_prompt = f"{system_prompt}\n\nUser Question: {req.message}"
+            response = chat.send_message(combined_prompt)
+            return {"response": response.text}
+            
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Gemini API Exception: {str(e)}")
+
+    # If neither key is configured
+    raise HTTPException(
+        status_code=500, 
+        detail="No active AI API keys (GROQ_API_KEY or GEMINI_API_KEY) found in the environment configurations. Please configure a free Groq key or Gemini key."
+    )
