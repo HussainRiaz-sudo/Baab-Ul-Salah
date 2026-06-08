@@ -35,7 +35,7 @@ MASJIDS = [
     {'id': 6, 'name': 'Ravi Hotel Masjid', 'lat': 31.6145895, 'lon': 74.2916412, 'offsets': {**DEFAULT_OFFSETS}},
     {'id': 7, 'name': 'M7C Masjid', 'lat': 31.3504382, 'lon': 74.2461831, 'offsets': {**DEFAULT_OFFSETS}},
     {'id': 8, 'name': 'Jamia Masjid Rehman', 'lat': 31.5808333, 'lon': 74.4665918, 'offsets': {**DEFAULT_OFFSETS}},
-    {'id': 9, 'name': 'Grand Jamia Mosque', 'lat': 31.3685, 'lon': 74.1856, 'offsets': {**DEFAULT_OFFSETS, 'zuhr_fixed': '13:45'}}, # Corrected Bahria Town
+    {'id': 9, 'name': 'Grand Jamia Mosque', 'lat': 31.4829403, 'lon': 74.3343893, 'offsets': {**DEFAULT_OFFSETS, 'zuhr_fixed': '13:45'}},
     {'id': 10, 'name': ' Jamia Masjid Dha Phase 4', 'lat': 31.464632, 'lon': 74.3839531, 'offsets': {**DEFAULT_OFFSETS}},
     {'id': 11, 'name': ' Jamia Masjid Mustafa', 'lat': 31.495198, 'lon': 74.3469482, 'offsets': {**DEFAULT_OFFSETS}},
     {'id': 12, 'name': ' Madina Masjid', 'lat': 31.4855552, 'lon': 74.3470166, 'offsets': {**DEFAULT_OFFSETS, 'zuhr_fixed': '13:45'}},

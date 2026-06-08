@@ -36,7 +36,7 @@ MASJIDS = [
     {'masjid_id': 6, 'masjid_name': 'Ravi Hotel Masjid', 'latitude': 31.6145895, 'longitude': 74.2916412},
     {'masjid_id': 7, 'masjid_name': 'M7C Masjid', 'latitude': 31.3504382, 'longitude': 74.2461831},
     {'masjid_id': 8, 'masjid_name': 'Jamia Masjid Rehman', 'latitude': 31.5808333, 'longitude': 74.4665918},
-    {'masjid_id': 9, 'masjid_name': 'Grand Jamia Mosque', 'latitude': 31.3685, 'longitude': 74.1856},
+    {'masjid_id': 9, 'masjid_name': 'Grand Jamia Mosque', 'latitude': 31.4829403, 'longitude': 74.3343893},
     {'masjid_id': 10, 'masjid_name': ' Jamia Masjid Dha Phase 4', 'latitude': 31.464632, 'longitude': 74.3839531},
     {'masjid_id': 11, 'masjid_name': ' Jamia Masjid Mustafa', 'latitude': 31.495198, 'longitude': 74.3469482},
     {'masjid_id': 12, 'masjid_name': ' Madina Masjid', 'latitude': 31.4855552, 'longitude': 74.3470166},
