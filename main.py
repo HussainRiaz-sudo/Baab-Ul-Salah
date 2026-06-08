@@ -279,3 +279,86 @@ def predict_single_day(req: PredictionRequest):
         maghrib_jamaat=from_mins(predictions[3]),
         isha_jamaat=from_mins(predictions[4])
     )
+
+# --- CHATBOT DATA AND ENDPOINT ---
+class ChatRequest(BaseModel):
+    message: str
+
+CHAT_QA = [
+    {
+        "keywords": ["project", "goal", "about", "purpose", "what is this", "work"],
+        "answer": "🕌 **Masjid Jamaat Timing Predictor** is a machine learning backend designed to predict the daily congregational (Jamaat) prayer times for masjids in Lahore.\n\nIt helps users find the exact start times of congregation prayers which normally change dynamically based on season, Ramadan, and local mosque rules."
+    },
+    {
+        "keywords": ["model", "algorithm", "random forest", "regressor", "ml", "method"],
+        "answer": "🤖 We use a **Random Forest Regressor** (100 trees, random state 42) from Scikit-Learn. It is trained as a **Multi-Output Regressor** to predict all 5 daily prayers (Fajr, Zuhr, Asr, Maghrib, Isha) in a single inference pass."
+    },
+    {
+        "keywords": ["dataset", "rows", "size", "data", "how many masjids", "total", "samples"],
+        "answer": "📊 The dataset covers **50 masjids** across Lahore (16 original starting masjids + 34 new verified locations).\n\nFor training, we generated a full year of daily data (2025), yielding **18,250 rows** (365 days × 50 masjids) with precise waqt boundaries and offsets."
+    },
+    {
+        "keywords": ["accuracy", "mae", "error", "performance", "metrics", "minute", "minutes"],
+        "answer": "📈 **Model Metrics:**\n* **Training MAE:** **0.198 minutes** (~12 seconds average deviation).\n* **Testing MAE:** **0.58 minutes** (~35 seconds average deviation).\n* **Interval Match Rate:** **99.4%** accuracy in predicting the correct 15-minute rounded boundaries."
+    },
+    {
+        "keywords": ["feature", "input", "dimension", "predictor", "columns", "features"],
+        "answer": "🔑 The model uses **9 features** to predict Jamaat timings:\n1. `masjid_id` (encodes local mosque offset rules)\n2. `is_ramadan` (binary flag for Ramadan calendar shift)\n3. `is_friday` (binary flag for Friday Jumu'ah shift)\n4. `day_of_year` (1-365, captures seasonal sunlight cycles)\n5. `fajr_waqt_mins` (Fajr start time from midnight)\n6. `dhuhr_waqt_mins` (Dhuhr start time)\n7. `asr_waqt_mins` (Asr Hanafi start time)\n8. `maghrib_waqt_mins` (Maghrib start time)\n9. `isha_waqt_mins` (Isha start time)"
+    },
+    {
+        "keywords": ["target", "output", "prediction", "predicts", "prayers", "targets"],
+        "answer": "🎯 The model outputs **5 continuous targets** (multi-output regression) representing the Jamaat timings in minutes from midnight:\n1. `fajr_jamaat_mins`\n2. `zuhr_jamaat_mins` (or Jumu'ah on Fridays)\n3. `asr_jamaat_mins`\n4. `maghrib_jamaat_mins`\n5. `isha_jamaat_mins`"
+    },
+    {
+        "keywords": ["offset", "rule", "calculation", "formula", "jamaat time", "how is jamaat", "offsets", "rules"],
+        "answer": "⚙️ **Jamaat Calculation Offset Rules:**\n* **Fajr**: Waqt +60 mins (normal) or +15 mins (Ramadan).\n* **Zuhr / Jumu'ah**: Fixed at `13:30` (default) or customized per masjid (e.g. `13:45`).\n* **Asr**: Waqt +35 mins, rounded to the nearest 15 minutes.\n* **Maghrib**: Waqt +10 mins (normal) or +15 mins (Ramadan).\n* **Isha**: Waqt +30 mins, rounded to the nearest 15 minutes."
+    },
+    {
+        "keywords": ["nearby", "gps", "distance", "haversine", "closest", "km", "location", "locations"],
+        "answer": "🌐 **Nearby Masjid Search:**\nWe use the **Haversine Formula** to compute the great-circle distance between the user's GPS coordinates and the masjids:\n\n`d = 2 * R * arcsin(sqrt(sin²(Δlat/2) + cos(lat1)*cos(lat2)*sin²(Δlon/2)))`\n\nwhere `R = 6371` km. The `/masjids/nearby` endpoint returns the closest masjids sorted by distance."
+    },
+    {
+        "keywords": ["endpoints", "api", "routes", "url", "requests", "paths"],
+        "answer": "🔌 **Available API Endpoints:**\n* `GET /` - Health check\n* `GET /masjids` - Retrieve all 50 masjids\n* `GET /masjids/nearby` - Get nearby masjids using GPS coordinates\n* `GET /masjids/{name}` - Search masjid by name\n* `POST /predict` - Predict timings for a single day\n* `POST /predict/range` - Bulk predict a date range (up to 400 days)\n* `POST /chat` - Interactive chatbot endpoint"
+    },
+    {
+        "keywords": ["why random forest", "decision tree", "neural network", "why rf"],
+        "answer": "🌳 **Why Random Forest?**\nDecision tree ensembles are uniquely suited for this task because the target offsets contain **discontinuous step-like roundings** (e.g., rounding to the nearest 15-minute interval). Neural networks tend to smooth these thresholds out, leading to larger rounding errors, while Random Forest learns the exact step boundaries perfectly."
+    },
+    {
+        "keywords": ["grand jamia", "id 9", "coordinates of 9", "jamia mosque"],
+        "answer": "🕌 **Grand Jamia Mosque (ID 9)** is configured at its original starting coordinates: **Latitude 31.4829403, Longitude 74.3343893** to preserve dataset consistency."
+    },
+    {
+        "keywords": ["lahore", "masjids in lahore", "geographic", "coordinates"],
+        "answer": "📍 All 50 masjids in our database are strictly verified Lahore locations. The dataset includes 16 starting masjids and 34 newly added locations spanning major neighborhoods like Gulberg, Johar Town, DHA, Model Town, Township, Samanabad, and the historic Walled City (e.g. Badshahi and Wazir Khan Mosques)."
+    }
+]
+
+@app.post("/chat")
+def chat_bot(req: ChatRequest):
+    """Chatbot endpoint to answer questions about the Masjid Predictor system"""
+    import re
+    cleaned = re.sub(r'[^\w\s]', '', req.message.lower())
+    
+    best_match = None
+    best_score = 0
+    
+    for qa in CHAT_QA:
+        # Calculate score: count how many keywords from this QA are in the cleaned message
+        score = sum(1 for kw in qa["keywords"] if kw in cleaned)
+        if score > best_score:
+            best_score = score
+            best_match = qa
+            
+    if best_score > 0:
+        return {"response": best_match["answer"]}
+        
+    return {
+        "response": "🤖 I'm specialized in the **Masjid Jamaat Timing Predictor**! You can ask me about:\n\n"
+                    "* **The ML Model**: Random Forest architecture, parameters, and features.\n"
+                    "* **Dataset & Accuracy**: MAE scores, training data size, and Lahore masjids.\n"
+                    "* **Offset Rules**: How prayer offsets (normal vs. Ramadan) are calculated.\n"
+                    "* **API Endpoints**: Details on endpoints like `/predict` and `/masjids/nearby`.\n\n"
+                    "Try asking: *'What algorithm is used?'* or *'What is the model accuracy?'*"
+    }
