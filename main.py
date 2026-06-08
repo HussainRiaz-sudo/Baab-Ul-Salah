@@ -11,6 +11,15 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 from typing import Optional
 
+# Load .env variables manually if .env file exists in the directory
+env_path = os.path.join(os.path.dirname(__file__), '.env')
+if os.path.exists(env_path):
+    with open(env_path, 'r', encoding='utf-8') as f:
+        for line in f:
+            if '=' in line and not line.strip().startswith('#'):
+                parts = line.strip().split('=', 1)
+                os.environ[parts[0].strip()] = parts[1].strip()
+
 app = FastAPI(
     title="Masjid Jamaat Prediction API",
     description="API for Jamaat predictions, bulk calendar fetching, and GPS nearby masjids.",
@@ -450,11 +459,8 @@ def chat_gemini(req: GeminiChatRequest):
         system_prompt += f"Active Database Context:\n{timing_context}\n\n"
         
     try:
-        # 3. Load Gemini Model (using gemini-1.5-flash for speed and low latency)
-        gemini_model = genai.GenerativeModel(
-            model_name="gemini-1.5-flash",
-            system_instruction=system_prompt
-        )
+        # 3. Load Gemini Model (using gemini-2.0-flash for high free quota limits)
+        gemini_model = genai.GenerativeModel(model_name="gemini-2.0-flash")
         
         # 4. Initialize chat history
         history = []
@@ -468,8 +474,9 @@ def chat_gemini(req: GeminiChatRequest):
                 
         chat = gemini_model.start_chat(history=history)
         
-        # 5. Generate response
-        response = chat.send_message(req.message)
+        # 5. Generate response by combining system prompt and message to avoid unsupported system_instruction parameter in gemini-pro
+        combined_prompt = f"{system_prompt}\n\nUser Question: {req.message}"
+        response = chat.send_message(combined_prompt)
         return {"response": response.text}
         
     except Exception as e:
