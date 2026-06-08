@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Model Expert Bot — Masjid Jamaat Predictor</title>
+  <title>e.Baab-ul-Salah Assistant</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -355,10 +355,10 @@
           </svg>
         </div>
         <div class="bot-meta">
-          <h2>Model Expert Bot</h2>
+          <h2>e.Baab-ul-Salah Assistant</h2>
           <div class="bot-status">
             <div class="status-dot"></div>
-            <span>Online | System Expert</span>
+            <span>Online | AI-Powered</span>
           </div>
         </div>
       </div>
@@ -370,33 +370,33 @@
       <!-- Greeting message -->
       <div class="message-row bot">
         <div class="bubble">
-          🤖 Assalamu Alaikum! I am the **e.Baab-ul-Salah Assistant**. How can I help you today with prayer timings, Islamic practices, or finding masjids in Lahore?
+          🤖 Assalamu Alaikum! I am the **e.Baab-ul-Salah Assistant**. How can I help you today with your Islamic queries, daily prayer rules, or Sunnah practices?
           <br><br>
           I can help you with:
           <ul>
-            <li>Checking **daily congregation (Jamaat) timings** for Lahore masjids</li>
-            <li>Finding the **nearest masjids** based on your GPS coordinates</li>
-            <li>Explaining **app features** like prayer alerts and reminders</li>
-            <li>Answering general questions on **Islamic practices, prayer rules, and Sunnah**</li>
+            <li>Answering general questions on **Islamic practices and daily prayers (Namaz)**</li>
+            <li>Explaining the step-by-step Sunnah method of **performing Wudhu**</li>
+            <li>Sharing authentic **Hadiths about prayer, congregation, and deeds**</li>
+            <li>Explaining basic **Fiqh rules and Sunnah practices**</li>
           </ul>
           <br>
-          What would you like to ask about e.Baab-ul-Salah?
+          What would you like to ask about Islam?
         </div>
       </div>
     </div>
 
     <!-- Suggestions chips -->
     <div class="suggestions-container">
-      <div class="suggestion-chip" onclick="askPredefined('What is the Fajr jamaat time at Ibn-e-Adam Masjid today?')">🕌 Fajr time at Ibn-e-Adam?</div>
-      <div class="suggestion-chip" onclick="askPredefined('How does the app find nearby masjids?')">📍 Finding nearby masjids?</div>
-      <div class="suggestion-chip" onclick="askPredefined('How does the prayer timings predictor feature work?')">⚙️ How do timings work?</div>
-      <div class="suggestion-chip" onclick="askPredefined('What are the benefits of congregational prayer?')">📖 Benefits of Jamaat?</div>
-      <div class="suggestion-chip" onclick="askPredefined('How do I configure prayer notifications in the app?')">🔔 Setting reminders?</div>
+      <div class="suggestion-chip" onclick="askPredefined('What is the importance of Namaz in Islam?')">🕌 Importance of Namaz</div>
+      <div class="suggestion-chip" onclick="askPredefined('Explain the step-by-step way of performing Wudhu.')">💦 How to perform Wudhu?</div>
+      <div class="suggestion-chip" onclick="askPredefined('What is the reward of praying in congregation? Tell me a Hadith.')">👥 Hadith on Congregation</div>
+      <div class="suggestion-chip" onclick="askPredefined('What are the Sunnah acts of Friday (Jumuah)?')">📅 Sunnah of Jumu'ah</div>
+      <div class="suggestion-chip" onclick="askPredefined('Tell me a Hadith about the virtues of Quran recitation.')">📖 Virtues of Quran</div>
     </div>
 
     <!-- Input form -->
     <form class="input-form" id="chatForm">
-      <input type="text" class="message-input" id="userInput" placeholder="Ask about the ML model, dataset, offsets..." autocomplete="off">
+      <input type="text" class="message-input" id="userInput" placeholder="Ask a general Islamic question (e.g. about Namaz, Wudhu, Hadiths)..." autocomplete="off">
       <button type="submit" class="send-btn">
         <svg viewBox="0 0 24 24">
           <path d="M2.01,21L23,12L2.01,3L2,10L17,12L2,14L2.01,21Z"/>
@@ -513,7 +513,7 @@
       
       try {
         // Post query to FastAPI endpoint
-        const response = await fetch(`${apiBase}/chat`, {
+        const response = await fetch(`${apiBase}/chat/gemini`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
