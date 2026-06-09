@@ -563,3 +563,135 @@ def predictive_advice(req: AnalyticsRequest):
                 continue
 
     return {"insights": insights}
+
+
+# --- SEASONAL TIME-SHIFT PREDICTIVE MODELING ---
+class ConfiguredPrayerTimes(BaseModel):
+    fajr_jamaat: str
+    zuhr_jamaat: str
+    asr_jamaat: str
+    maghrib_jamaat: str
+    isha_jamaat: str
+
+class MasjidDriftRequest(BaseModel):
+    masjid_name: str
+    date: str  # Format: YYYY-MM-DD
+    configured_times: ConfiguredPrayerTimes
+
+class DriftCheckRequest(BaseModel):
+    masjids: list[MasjidDriftRequest]
+
+def parse_time_to_mins(time_str: str) -> int:
+    """Parses a time string like '05:00 AM', '17:30', or '5:00 PM' into minutes from midnight"""
+    time_str = time_str.strip().upper()
+    if "AM" in time_str or "PM" in time_str:
+        meridian = "PM" if "PM" in time_str else "AM"
+        clean_time = time_str.replace("AM", "").replace("PM", "").strip()
+        parts = clean_time.split(":")
+        h = int(parts[0])
+        m = int(parts[1])
+        if meridian == "PM" and h < 12:
+            h += 12
+        elif meridian == "AM" and h == 12:
+            h = 0
+        return h * 60 + m
+    else:
+        parts = time_str.split(":")
+        return int(parts[0]) * 60 + int(parts[1])
+
+@app.post("/analytics/seasonal-drift-check")
+def seasonal_drift_check(req: DriftCheckRequest):
+    """Studies historical timetable variations and flags masjids lagging behind seasonal adjustments"""
+    if model is None:
+        raise HTTPException(status_code=500, detail="Model is not loaded.")
+
+    anomalies = []
+    thresholds = {
+        "Fajr": 15,
+        "Zuhr": 15,
+        "Asr": 15,
+        "Maghrib": 10,
+        "Isha": 15
+    }
+
+    for item in req.masjids:
+        masjid_details = _lookup_masjid(item.masjid_name)
+        if not masjid_details:
+            continue
+
+        try:
+            dt = datetime.strptime(item.date, "%Y-%m-%d")
+        except ValueError:
+            continue
+
+        # Get astronomical start times
+        y, m, d = dt.year, dt.month, dt.day
+        waqt = PT.getTimes((y, m, d), (masjid_details['latitude'], masjid_details['longitude']), 5)
+        astro = {
+            "Fajr": to_mins(waqt['fajr']),
+            "Zuhr": to_mins(waqt['dhuhr']),
+            "Asr": to_mins(waqt['asr']),
+            "Maghrib": to_mins(waqt['maghrib']),
+            "Isha": to_mins(waqt['isha'])
+        }
+
+        # Predict standard/expected Jamaat times via ML model
+        features = _generate_features_for_day(dt, masjid_details['masjid_id'], masjid_details['latitude'], masjid_details['longitude'])
+        predictions = model.predict([features])[0]
+        predictions = np.round(predictions).astype(int)
+        predicted = {
+            "Fajr": int(predictions[0]),
+            "Zuhr": int(predictions[1]),
+            "Asr": int(predictions[2]),
+            "Maghrib": int(predictions[3]),
+            "Isha": int(predictions[4])
+        }
+
+        # Parse configured times
+        cfg = item.configured_times
+        configured = {
+            "Fajr": parse_time_to_mins(cfg.fajr_jamaat),
+            "Zuhr": parse_time_to_mins(cfg.zuhr_jamaat),
+            "Asr": parse_time_to_mins(cfg.asr_jamaat),
+            "Maghrib": parse_time_to_mins(cfg.maghrib_jamaat),
+            "Isha": parse_time_to_mins(cfg.isha_jamaat)
+        }
+
+        # Check each prayer for drift or invalid status
+        for prayer in ["Fajr", "Zuhr", "Asr", "Maghrib", "Isha"]:
+            cfg_mins = configured[prayer]
+            pred_mins = predicted[prayer]
+            astro_mins = astro[prayer]
+
+            # 1. Astronomical check (configured time is before prayer start time)
+            if cfg_mins < astro_mins:
+                anomalies.append({
+                    "masjid_name": masjid_details['masjid_name'],
+                    "date": item.date,
+                    "prayer_name": prayer,
+                    "configured_time": from_mins(cfg_mins),
+                    "predicted_time": from_mins(pred_mins),
+                    "astronomical_start": from_mins(astro_mins),
+                    "drift_mins": astro_mins - cfg_mins,
+                    "status": "Invalid",
+                    "message": f"{prayer} Jamaat ({from_mins(cfg_mins)}) is configured before its astronomical start time of {from_mins(astro_mins)}."
+                })
+            else:
+                # 2. Model prediction drift check
+                drift = cfg_mins - pred_mins
+                if abs(drift) > thresholds[prayer]:
+                    status = "Lagging" if drift > 0 else "Leading"
+                    anomalies.append({
+                        "masjid_name": masjid_details['masjid_name'],
+                        "date": item.date,
+                        "prayer_name": prayer,
+                        "configured_time": from_mins(cfg_mins),
+                        "predicted_time": from_mins(pred_mins),
+                        "astronomical_start": from_mins(astro_mins),
+                        "drift_mins": abs(drift),
+                        "status": status,
+                        "message": f"{prayer} Jamaat ({from_mins(cfg_mins)}) is {status.lower()} behind seasonal adjustments by {abs(drift)} minutes (Predicted: {from_mins(pred_mins)})."
+                    })
+
+    return {"anomalies": anomalies}
+
