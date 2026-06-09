@@ -460,3 +460,106 @@ def chat_gemini(req: GeminiChatRequest):
     """Answers user query using Groq or Gemini Pro, acting as a general Islamic chatbot"""
     response_text = get_islamic_chat_response(req.message, req.history, req.mode)
     return {"response": response_text}
+
+# --- AI PREDICTIVE PRAYER ANALYTICS ---
+class PrayerLog(BaseModel):
+    prayer_name: str  # "Fajr", "Zuhr", "Asr", "Maghrib", "Isha"
+    date: str        # "YYYY-MM-DD"
+    status: str      # "attended_jamaat", "prayed_alone", "missed"
+
+class AnalyticsRequest(BaseModel):
+    history: list[PrayerLog]
+
+@app.post("/analytics/predictive-advice")
+def predictive_advice(req: AnalyticsRequest):
+    """Analyzes personal prayer logs over time to generate tailored habit-building insights"""
+    if not req.history:
+        return {"insights": []}
+
+    # Group records by prayer name
+    # We will compute attendance stats
+    stats = {}
+    for entry in req.history:
+        name = entry.prayer_name.strip().capitalize()
+        # Parse date to check if weekday (0-4 represent Mon-Fri)
+        is_weekday = False
+        try:
+            dt = datetime.strptime(entry.date, "%Y-%m-%d")
+            is_weekday = dt.weekday() < 5
+        except Exception:
+            pass
+
+        if name not in stats:
+            stats[name] = {
+                "total_weekday": 0, "attended_weekday": 0, "missed_weekday": 0, "alone_weekday": 0,
+                "total_weekend": 0, "attended_weekend": 0, "missed_weekend": 0, "alone_weekend": 0,
+                "total": 0, "attended": 0, "missed": 0, "alone": 0
+            }
+
+        s = stats[name]
+        s["total"] += 1
+        if entry.status == "attended_jamaat":
+            s["attended"] += 1
+        elif entry.status == "missed":
+            s["missed"] += 1
+        else:
+            s["alone"] += 1
+
+        if is_weekday:
+            s["total_weekday"] += 1
+            if entry.status == "attended_jamaat":
+                s["attended_weekday"] += 1
+            elif entry.status == "missed":
+                s["missed_weekday"] += 1
+            else:
+                s["alone_weekday"] += 1
+        else:
+            s["total_weekend"] += 1
+            if entry.status == "attended_jamaat":
+                s["attended_weekend"] += 1
+            elif entry.status == "missed":
+                s["missed_weekend"] += 1
+            else:
+                s["alone_weekend"] += 1
+
+    insights = []
+
+    # Heuristic Rule checks
+    for prayer, s in stats.items():
+        # 1. Weekday Asr/Zuhr drop due to work/traffic
+        if prayer in ["Asr", "Zuhr"] and s["total_weekday"] >= 3:
+            missed_or_alone_rate = (s["missed_weekday"] + s["alone_weekday"]) / s["total_weekday"]
+            if missed_or_alone_rate > 0.4:
+                insights.append({
+                    "prayer_name": prayer,
+                    "pain_point": "Weekday Work/Traffic Friction",
+                    "advice": f"We noticed you often miss Jamaat for {prayer} on weekdays. This is common due to rush-hour office traffic and meeting times. Would you like to enable a smart travel alert 25 minutes before prayer time to plan your journey?",
+                    "suggested_reminder_offset_mins": 25
+                })
+                continue # Avoid duplicate alerts for same prayer
+
+        # 2. Fajr wake-up drop
+        if prayer == "Fajr" and s["total"] >= 3:
+            missed_rate = s["missed"] / s["total"]
+            if missed_rate > 0.4:
+                insights.append({
+                    "prayer_name": prayer,
+                    "pain_point": "Fajr Morning Wake-up",
+                    "advice": "We noticed Fajr is your most missed congregational prayer. Establishing Fajr brings immense barakah to your day. Would you like to schedule an automated alarm 15 minutes before Fajr Iqamah starts?",
+                    "suggested_reminder_offset_mins": 15
+                })
+                continue
+
+        # 3. Weekend Alone drop for Maghrib/Isha
+        if prayer in ["Maghrib", "Isha"] and s["total_weekend"] >= 2:
+            alone_rate = s["alone_weekend"] / s["total_weekend"]
+            if alone_rate > 0.4:
+                insights.append({
+                    "prayer_name": prayer,
+                    "pain_point": "Weekend Alone Prayers",
+                    "advice": f"You frequently pray {prayer} alone on weekends. Weekend evenings are a great opportunity to visit the mosque with family. Would you like a mosque arrival alert 15 minutes before congregational prayer?",
+                    "suggested_reminder_offset_mins": 15
+                })
+                continue
+
+    return {"insights": insights}
