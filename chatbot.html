@@ -338,11 +338,93 @@
       fill: #0b0f19;
       transform: rotate(45deg) translate(-1px, 1px);
     }
+
+    /* Persona Switch Toggle Header Button Styling */
+    .persona-switch {
+      display: flex;
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 2px;
+      gap: 2px;
+    }
+
+    .switch-btn {
+      background: transparent;
+      border: none;
+      color: #8b949e;
+      padding: 0.35rem 0.75rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .switch-btn:hover {
+      color: var(--text-main);
+    }
+
+    .switch-btn.active {
+      background: var(--primary-gradient);
+      color: #0b0f19;
+      box-shadow: 0 2px 10px rgba(56, 189, 248, 0.25);
+    }
+
+    .switch-btn.kids.active {
+      background: linear-gradient(135deg, #fb923c, #facc15); /* Warm soft orange/yellow kids gradient */
+      color: #0c0a09;
+      box-shadow: 0 2px 10px rgba(251, 146, 60, 0.25);
+    }
+
+    /* --- KIDS MODE TRANSITION OVERRIDES --- */
+    .chat-wrapper.kids-mode {
+      background: rgba(24, 20, 15, 0.65); /* Soft warm dark brown backdrop */
+      border-color: rgba(251, 146, 60, 0.15);
+      box-shadow: 0 20px 50px rgba(24, 20, 15, 0.4);
+    }
+
+    .chat-wrapper.kids-mode .bot-avatar {
+      background: linear-gradient(135deg, #fb923c, #facc15);
+      box-shadow: 0 0 15px rgba(251, 146, 60, 0.4);
+    }
+
+    .chat-wrapper.kids-mode .bot-status {
+      color: #facc15;
+    }
+
+    .chat-wrapper.kids-mode .status-dot {
+      background-color: #facc15;
+      box-shadow: 0 0 8px #facc15;
+    }
+
+    .chat-wrapper.kids-mode .user .bubble {
+      background: linear-gradient(135deg, #fb923c, #facc15);
+      color: #0c0a09;
+      font-weight: 600;
+      box-shadow: 0 4px 15px rgba(251, 146, 60, 0.25);
+    }
+
+    .chat-wrapper.kids-mode .suggestion-chip:hover {
+      color: #facc15;
+      border-color: rgba(250, 204, 21, 0.4);
+      background: rgba(250, 204, 21, 0.1);
+    }
+
+    .chat-wrapper.kids-mode .message-input:focus {
+      border-color: rgba(251, 146, 60, 0.5);
+      box-shadow: 0 0 10px rgba(251, 146, 60, 0.15);
+    }
+
+    .chat-wrapper.kids-mode .send-btn {
+      background: linear-gradient(135deg, #fb923c, #facc15);
+      box-shadow: 0 4px 15px rgba(251, 146, 60, 0.25);
+    }
   </style>
 </head>
 <body>
 
-  <div class="chat-wrapper">
+  <div class="chat-wrapper" id="chatWrapper">
     <!-- Header -->
     <div class="chat-header">
       <div class="bot-info">
@@ -355,12 +437,16 @@
           </svg>
         </div>
         <div class="bot-meta">
-          <h2>e.Baab-ul-Salah Assistant</h2>
+          <h2 id="botName">e.Baab-ul-Salah Assistant</h2>
           <div class="bot-status">
             <div class="status-dot"></div>
-            <span>Online | AI-Powered</span>
+            <span id="botStatusText">Online | AI-Powered</span>
           </div>
         </div>
+      </div>
+      <div class="persona-switch">
+        <button type="button" class="switch-btn active" id="btnStandard" onclick="setMode('standard')">Standard</button>
+        <button type="button" class="switch-btn kids" id="btnKids" onclick="setMode('kids')">Kids Mode 🧸</button>
       </div>
       <a href="dashboard.html" class="back-btn">← Back to Dashboard</a>
     </div>
@@ -386,12 +472,7 @@
     </div>
 
     <!-- Suggestions chips -->
-    <div class="suggestions-container">
-      <div class="suggestion-chip" onclick="askPredefined('What is the importance of Namaz in Islam?')">🕌 Importance of Namaz</div>
-      <div class="suggestion-chip" onclick="askPredefined('Explain the step-by-step way of performing Wudhu.')">💦 How to perform Wudhu?</div>
-      <div class="suggestion-chip" onclick="askPredefined('What is the reward of praying in congregation? Tell me a Hadith.')">👥 Hadith on Congregation</div>
-      <div class="suggestion-chip" onclick="askPredefined('What are the Sunnah acts of Friday (Jumuah)?')">📅 Sunnah of Jumu'ah</div>
-      <div class="suggestion-chip" onclick="askPredefined('Tell me a Hadith about the virtues of Quran recitation.')">📖 Virtues of Quran</div>
+    <div class="suggestions-container" id="suggestionsBox">
     </div>
 
     <!-- Input form -->
@@ -409,6 +490,99 @@
     const messagesBox = document.getElementById('messagesBox');
     const chatForm = document.getElementById('chatForm');
     const userInput = document.getElementById('userInput');
+    const chatWrapper = document.getElementById('chatWrapper');
+    const btnStandard = document.getElementById('btnStandard');
+    const btnKids = document.getElementById('btnKids');
+    const botName = document.getElementById('botName');
+    const botStatusText = document.getElementById('botStatusText');
+    const suggestionsBox = document.getElementById('suggestionsBox');
+
+    let currentMode = "standard";
+
+    const SUGGESTIONS = {
+      standard: [
+        { text: "🕌 Importance of Namaz", query: "What is the importance of Namaz in Islam?" },
+        { text: "💦 How to perform Wudhu?", query: "Explain the step-by-step way of performing Wudhu." },
+        { text: "👥 Hadith on Congregation", query: "What is the reward of praying in congregation? Tell me a Hadith." },
+        { text: "📅 Sunnah of Jumu'ah", query: "What are the Sunnah acts of Friday (Jumuah)?" },
+        { text: "📖 Virtues of Quran", query: "Tell me a Hadith about the virtues of Quran recitation." }
+      ],
+      kids: [
+        { text: "🚢 Story of Prophet Nuh", query: "Tell me a story about Prophet Nuh (Noah) and the Ark! 🚢" },
+        { text: "💦 Wudhu steps for kids", query: "How do I perform Wudhu step-by-step? 💦" },
+        { text: "🌟 Why do we pray Namaz?", query: "Why do we pray Namaz? 🌟" },
+        { text: "🐦 Story of Prophet Ibrahim", query: "Tell me a story about Prophet Ibrahim (Abraham) and the birds! 🐦" }
+      ]
+    };
+
+    function renderSuggestions() {
+      suggestionsBox.innerHTML = "";
+      const list = SUGGESTIONS[currentMode];
+      list.forEach(item => {
+        const chip = document.createElement("div");
+        chip.className = "suggestion-chip";
+        chip.innerText = item.text;
+        chip.onclick = () => askPredefined(item.query);
+        suggestionsBox.appendChild(chip);
+      });
+    }
+
+    function setMode(mode) {
+      if (mode === currentMode) return;
+      currentMode = mode;
+
+      if (mode === "kids") {
+        chatWrapper.classList.add("kids-mode");
+        btnStandard.classList.remove("active");
+        btnKids.classList.add("active");
+        botName.innerText = "Deen Buddy 🧸";
+        botStatusText.innerText = "Online | Friendly Tutor 🌟";
+        userInput.placeholder = "Ask your Deen Buddy a question (e.g. stories, how to pray)...";
+        
+        // Reset messages with kids greeting
+        messagesBox.innerHTML = `
+          <div class="message-row bot">
+            <div class="bubble">
+              🧸 **Assalamu Alaikum little friend! 🌟**
+              <br><br>
+              I'm your **Deen Buddy**! I can tell you stories about the Prophets, explain how to do Wudhu in a fun way, or answer any questions about Islam! 
+              <br><br>
+              What would you like to learn today? 🎈
+            </div>
+          </div>
+        `;
+      } else {
+        chatWrapper.classList.remove("kids-mode");
+        btnStandard.classList.add("active");
+        btnKids.classList.remove("active");
+        botName.innerText = "e.Baab-ul-Salah Assistant";
+        botStatusText.innerText = "Online | AI-Powered";
+        userInput.placeholder = "Ask a general Islamic question (e.g. about Namaz, Wudhu, Hadiths)...";
+        
+        // Reset messages with standard greeting
+        messagesBox.innerHTML = `
+          <div class="message-row bot">
+            <div class="bubble">
+              🤖 Assalamu Alaikum! I am the **e.Baab-ul-Salah Assistant**. How can I help you today with your Islamic queries, daily prayer rules, or Sunnah practices?
+              <br><br>
+              I can help you with:
+              <ul>
+                <li>Answering general questions on **Islamic practices and daily prayers (Namaz)**</li>
+                <li>Explaining the step-by-step Sunnah method of **performing Wudhu**</li>
+                <li>Sharing authentic **Hadiths about prayer, congregation, and deeds**</li>
+                <li>Explaining basic **Fiqh rules and Sunnah practices**</li>
+              </ul>
+              <br>
+              What would you like to ask about Islam?
+            </div>
+          </div>
+        `;
+      }
+      renderSuggestions();
+    }
+
+    // Initial render
+    renderSuggestions();
 
     // Simple markdown to HTML parser for styled bot answers
     function formatResponse(text) {
@@ -417,8 +591,10 @@
       // Replace bold syntax
       formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
       
+      // Replace blockquotes
+      formatted = formatted.replace(/^>\s*(.*?)$/gm, '<blockquote>$1</blockquote>');
+      
       // Replace bullet lists
-      // Split by lines and parse
       let lines = formatted.split('\n');
       let inList = false;
       let newLines = [];
@@ -444,7 +620,7 @@
       }
       
       formatted = newLines.join('\n');
-      // Convert single newlines to br
+      // Convert single newlines to br (avoiding breaking bullet points or lists)
       formatted = formatted.replace(/\n/g, '<br>');
       
       return formatted;
@@ -518,7 +694,7 @@
           headers: {
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ message: queryText })
+          body: JSON.stringify({ message: queryText, mode: currentMode })
         });
         
         removeTypingIndicator();
