@@ -661,3 +661,114 @@ def seasonal_drift_check(req: DriftCheckRequest):
 
     return {"anomalies": anomalies}
 
+
+# --- INTERACTIVE WEEKLY REFLECTION & PLAN GENERATOR ---
+class WeeklySummaryRequest(BaseModel):
+    history: list[PrayerLog]
+
+class NonJamaatPrayerDetail(BaseModel):
+    prayer_name: str
+    missed_count: int
+    alone_count: int
+    total_logged: int
+
+class WeeklySummaryResponse(BaseModel):
+    non_jamaat_prayers: list[NonJamaatPrayerDetail]
+
+class GeneratePlanRequest(BaseModel):
+    prayer_name: str
+    status: str  # "missed" or "prayed_alone"
+    reason: str  # "work_meetings", "traffic_travel", "sleep_fatigue", "forgetfulness", "no_masjid_nearby"
+
+class HabitPlanResponse(BaseModel):
+    prayer_name: str
+    status: str
+    reason: str
+    plan: str
+    suggested_reminder_offset_mins: int
+
+@app.post("/analytics/weekly-summary", response_model=WeeklySummaryResponse)
+def weekly_summary(req: WeeklySummaryRequest):
+    """Analyzes a week of prayer history to identify prayers that were missed or prayed alone"""
+    counts = {}
+    # Initialize counts for all 5 prayers
+    for name in ["Fajr", "Zuhr", "Asr", "Maghrib", "Isha"]:
+        counts[name] = {"missed": 0, "alone": 0, "total": 0}
+
+    for entry in req.history:
+        name = entry.prayer_name.strip().capitalize()
+        if name in counts:
+            counts[name]["total"] += 1
+            if entry.status == "missed":
+                counts[name]["missed"] += 1
+            elif entry.status == "prayed_alone":
+                counts[name]["alone"] += 1
+
+    non_jamaat = []
+    for name, c in counts.items():
+        if c["missed"] > 0 or c["alone"] > 0:
+            non_jamaat.append(NonJamaatPrayerDetail(
+                prayer_name=name,
+                missed_count=c["missed"],
+                alone_count=c["alone"],
+                total_logged=c["total"]
+            ))
+
+    return WeeklySummaryResponse(non_jamaat_prayers=non_jamaat)
+
+@app.post("/analytics/generate-plan", response_model=HabitPlanResponse)
+def generate_plan(req: GeneratePlanRequest):
+    """Generates a tailored habit-building plan based on the reason selected by the user"""
+    prayer = req.prayer_name.strip().capitalize()
+    status = req.status.strip().lower()
+    reason = req.reason.strip().lower()
+
+    # Base offsets and plans based on user reason and status
+    plans = {
+        "work_meetings": {
+            "missed": f"To prevent work or chores from causing you to completely miss {prayer}, try setting a calendar block for 10 minutes. A gentle reminder 10 minutes before Iqamah will help you transition from your tasks.",
+            "prayed_alone": f"Since you prayed {prayer} alone due to work, consider scheduling a reminder 15 minutes before congregation. Try inviting colleagues or family members nearby to pray together in congregation.",
+            "offset": 15
+        },
+        "traffic_travel": {
+            "missed": f"Commuting during {prayer} time is a challenge. We suggest setting a smart travel alert 25 minutes before prayer to plan your departure or locate a mosque on your route.",
+            "prayed_alone": f"To avoid praying {prayer} alone when traveling, set a mosque-arrival alert 20 minutes early. Use the app's 5km finder to locate a nearby mosque with active congregation.",
+            "offset": 20
+        },
+        "sleep_fatigue": {
+            "missed": f"Struggling to wake up for {prayer} is common. We recommend placing your alarm far from your bed and setting an automated alert 15 minutes before Iqamah starts. Ask a family member or friend to call you.",
+            "prayed_alone": f"If morning or late-night fatigue makes you pray {prayer} alone, set a wakeup alert 15 minutes before congregation. Linking up with a mosque-going buddy will help you stay accountable.",
+            "offset": 15
+        },
+        "forgetfulness": {
+            "missed": f"It is easy to get distracted and miss {prayer}. We recommend enabling a recurring notification 5 minutes before Azan to bring your awareness back to the prayer time.",
+            "prayed_alone": f"To ensure you don't miss the Jamaat for {prayer} due to distraction, set an alert 10 minutes before congregation so you can get ready and walk to the mosque.",
+            "offset": 10
+        },
+        "no_masjid_nearby": {
+            "missed": f"If you missed {prayer} because you couldn't find a mosque, enable a masjid-locator notification 15 minutes early to guide you using the 5km radius navigation.",
+            "prayed_alone": f"To pray {prayer} in congregation when in an unfamiliar area, use the app's 5km radius finder and set a masjid-arrival alert 15 minutes before the Iqamah starts.",
+            "offset": 15
+        }
+    }
+
+    # Fallback plan if reason is unknown
+    default_plan = {
+        "missed": f"Building consistency for {prayer} starts with small steps. Set a reminder 10 minutes before the prayer to prepare yourself.",
+        "prayed_alone": f"Try to visit the local masjid for {prayer}. Set an alert 15 minutes before the congregation to give you enough time to travel.",
+        "offset": 15
+    }
+
+    selected = plans.get(reason, default_plan)
+    plan_text = selected.get(status, selected.get("missed"))
+    offset = selected.get("offset", 15)
+
+    return HabitPlanResponse(
+        prayer_name=prayer,
+        status=status,
+        reason=reason,
+        plan=plan_text,
+        suggested_reminder_offset_mins=offset
+    )
+
+
